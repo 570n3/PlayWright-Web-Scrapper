@@ -1,0 +1,74 @@
+name: Playwright Tests with Allure Report
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Install Allure CLI and Allure Playwright
+        run: |
+          npm i -D @playwright/test allure-playwright
+          npm install -g allure-commandline
+
+      - name: Run Playwright tests and generate Allure results
+        run: |
+          npx playwright test example.spec.ts --reporter=line,allure-playwright
+
+      - name: Archive Allure results
+        uses: actions/upload-artifact@v3
+        with:
+          name: allure-results
+          path: allure-results/
+
+  generate-report:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download Allure results
+        uses: actions/download-artifact@v3
+        with:
+          name: allure-results
+
+      - name: Install Allure CLI and Allure Playwright
+        run: |
+          npm i -D @playwright/test allure-playwright
+          npm install -g allure-commandline
+
+      - name: Generate Allure Report
+        run: |
+          allure generate --clean -o allure-report allure-results
+
+      - name: Upload Allure Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: allure-report
+          path: allure-report/
+          retention-days: 30
+      - name: Install Nodemailer
+        run: npm install nodemailer
+    
+      - name: Send Allure Report via Email
+        run: |
+            echo "Sending Allure report via email..."
+            node send_report.js
